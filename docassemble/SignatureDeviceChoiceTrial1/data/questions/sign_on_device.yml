@@ -1,0 +1,364 @@
+metadata:
+  title: Device choice for signature
+  short: Signature via device
+
+# DEVELOPER: Include this at the top of your script before your other code.
+# You can customize this and override the text and code in here.
+# Shared content and functionality will continue to be worked on and improved,
+# as well as translated, so it might be worth keeping what you can.
+
+# Justification for file name: It's the only variable name needed to trigger this whole thing
+# Disclaimer: I'm not quite sure how to utlize `force_action()`. For now, it's just a way to make sure the user can't go back.
+
+# TODO: Prevent original device from accidentally opening the signature page?
+# TODO: Allow user to explicitly go back to their original device.
+# TODO: Add error message for wrong number
+# TODO: Provide email option too?
+# TODO: `task_not_yet_performed('send signature link')` - allow only one sending of the link?
+---
+modules:  
+  - docassemble.VirtualCourtToolbox.shortenURL
+---
+# WHAT SHOULD WE UNDEFINE WHERE/WHEN?!?!?! !@#%
+# If needed, offer them a way to send the link to another device.
+# Direct them to the signature.
+id: generic signature flow
+event: x.sign_on_device
+#reconsider: True is not sufficient
+#reconsider:
+#  - x.started_on_phone
+generic object: Individual
+code: |
+  x_var_name = x.instanceName
+  x.correct_current_device = x.current_device_id == x.signature_device_id
+  was_from_an_action = not action_argument() is None
+  x.correct_action_id = was_from_an_action and action_argument( 'device_id' ) == x.signature_device_id
+  
+  # TERMINAL CASE: If has signed already, skip to end
+  if defined( x_var_name + '.signature' ):
+    x.has_signed = True
+    x.signature_date = today()
+    force_ask( x_var_name + '.after_signature' )
+
+  # If this is the correct device on which to sign
+  # This logic needs some more examination
+  elif x.correct_current_device or x.correct_action_id:
+    #if reconsider( x_var_name + '.wants_this_device' ) is True:
+    if x.wants_this_device:
+      # Invalidate all other devices
+      if not x.correct_current_device:        
+        x.signature_device_id = reconsider( x_var_name + '.random_id' )
+        x.current_device_id = x.signature_device_id
+        
+      # (Include status on 'willing' page? Wrong focus?)
+      #reconsider( x_var_name + '.willing_to_sign' )
+      if x.willing_to_sign:
+        # In case they changed their mind on a different device between screens
+        if x.correct_current_device or x.correct_action_id:
+          #reconsider( x_var_name + '.signature' )
+          x.signature  # Should only be defined once
+
+    # if wants a different device
+    else:
+      # Prevent this or another invalidated device from signing
+      # How to handle an old device they want to come back to?
+      # Device id for link while preventing it from getting remade every time
+      log( '1: ' + x.signature_device_id ) 
+      if x.got_new_device_id is False:
+        x.signature_device_id = reconsider( x_var_name + '.random_id' )
+        x.got_new_device_id = True
+      log( '2: ' + x.signature_device_id )
+      #reconsider( x_var_name + '.send_signature_link_method' )
+      #x.send_signature_link_method
+      if x.send_signature_link_method == 'text':
+        #reconsider( x_var_name + '.send_sms_signature_link' )
+        x.send_sms_signature_link
+      elif x.send_signature_link_method == 'email':
+        #reconsider( x_var_name + '.send_email_signature_link' )
+        x.send_email_signature_link
+
+      x.got_new_device_id = False
+      log( '3: ' + x.signature_device_id )
+      # Is this needed RIGHT HERE to prevent looping through and setting new device id? Or can it be done after everything else?
+      # Invalidate past devices, reset values so they can be asked again?
+      force_ask(
+        { 'recompute': [ x.instanceName + '.device_choice_reset' ] },
+        x_var_name + '.sign_on_device'
+      )
+
+  # Interaction is not on the signature device right now
+  else:
+    if reconsider( x_var_name + '.wants_device_redo' ) is True:
+      # Prevent this or another invalidated device from signing
+      # How to handle an old device they want to come back to?
+      # Invalidate other devices
+      x.signature_device_id = reconsider( x_var_name + '.random_id' )
+      x.current_device_id = x.signature_device_id
+      # Invalidate past devices, reset values so they can be asked again?
+      force_ask(
+        { 'recompute': [ x.instanceName + '.device_choice_reset' ] },
+        x_var_name + '.sign_on_device'
+      )
+
+  # Always loop again till TERMINAL CASE
+  force_ask( x_var_name + '.sign_on_device' )
+  # vvv Maybe this instead, but I don't think so vvv
+  #force_ask(
+  #  { 'recompute': [ x.instanceName + '.device_choice_reset' ] },
+  #  x_var_name + '.sign_on_device'
+  #)
+---
+#.signature_device_id   # Will create first x.new_device_id.
+#.signature
+#.after_signature
+#.wants_this_device True/False
+#.willing_to_sign
+#.send_signature_link_method 'text' 'email'
+#.send_sms_signature_link
+#.send_email_signature_link
+#.wants_device_redo
+#.new_device_id
+---
+generic object: Individual
+code: |
+  x.got_new_device_id = False
+---
+generic object: Individual
+code: |
+  # The id for the device that is allowed to get the signature right now
+  x.signature_device_id = reconsider( x.instanceName + '.random_id' )
+  x.current_device_id = x.signature_device_id # gets us through the first loop
+---
+id: signature
+generic object: Individual
+question: |
+  Sign your name
+signature: x.signature
+under: |
+  ${ x }
+---
+id: after signature
+generic object: Individual
+event: x.after_signature
+question: |
+  Thank you ${ x }
+buttons:
+  - Exit: exit
+  - Restart: restart
+---
+id: wants this device?
+generic object: Individual
+question: |
+  Do you want to sign on this device?
+subquestion: |
+  You can sign somewhere else if you want, like on a different computer or phone.
+yesno: x.wants_this_device
+---
+id: willing to sign
+generic object: Individual
+question: |
+  Are you willing to sign this document?
+yesno: x.willing_to_sign
+---
+id: where to sign
+generic object: Individual
+question: |
+  Choose the way you want to sign this document
+fields:
+  - note: |
+      You can use this QR code:
+      This will be a QR code.
+  - Send this to a different device: x.send_signature_link_method
+    datatype: radio
+    required: False
+    choices:
+      - Email: email
+      - Text: text
+  - What email address?: x.email
+    js show if: |
+      val("x.send_signature_link_method") == "email"
+  - What is their phone number?: x.mobile_number
+    js show if: |
+      val("x.send_signature_link_method") == "text"
+---
+generic object: Individual
+code: |
+  x.signature_link_result = send_sms(task='send sms signature link', to=x.mobile_number, template=x.sms_template, device_id=x.signature_device_id)
+  x.send_sms_signature_link = True
+---
+generic object: Individual
+code: |
+  x.signature_link_result = send_email(task='send email signature link', to=x, template=x.email_template, device_id=x.signature_device_id)
+  x.send_email_signature_link = True
+---
+generic object: Individual
+code: |
+  url = interview_url_action(SIGNATURE_EVENT, signer_id=x.signer_id)
+  x.url = shortenMe( url ).shortenedURL
+---
+generic object: Individual
+code: |
+  # Transition to the below
+  x.url_as_qr = interview_url_action_as_qr(SIGNATURE_EVENT, signer_id=x.signer_id)
+---
+# constant
+code: |
+  SIGNATURE_EVENT = 'request_signature'
+---
+# Gives a unique id to the individual that the interview will recognize.
+generic object: Individual
+code: |
+  x.signer_id = reconsider( x.instanceName + '.random_id' )
+---
+id: generic sms template
+generic object: Individual
+template: x.sms_template
+content: |
+  Dear ${ x },
+  Your signature is needed on a document.
+  ${ x.url }
+---
+id: generic email template
+generic object: Individual
+template: x.email_template
+content: |
+  Dear ${ x },
+  Your signature is needed on a document.
+  
+  ${ x.url }
+
+  You can also use this QR code:
+
+  ${ x.url_as_qr }
+---
+id: waiting for signature
+generic object: Individual
+question: |
+  We are waiting for a signature on another device
+subquestion: |
+  When you are done signing on the other device you can keep going.
+  
+  Do you want to pick a different device to sign on?
+yesno: x.wants_device_redo
+---
+generic object: Individual
+code: |
+  undefine( x.instanceName + '.wants_this_device' )
+  undefine( x.instanceName + '.willing_to_sign' )
+  undefine( x.instanceName + '.send_signature_link_method' )
+  undefine( x.instanceName + '.send_sms_signature_link' )
+  undefine( x.instanceName + '.send_email_signature_link' )
+
+  x.device_choice_reset = True
+---
+
+---
+generic object: Individual
+code: |
+  import random
+  import string
+  x.random_id = ''.join(random.choice(string.ascii_lowercase) for i in range(10))
+---
+
+
+
+comment: |
+  id: which device
+  generic object: Individual
+  code: |
+    x.started_on_phone = device().is_mobile
+  ---
+  id: signature device choice
+  generic object: Individual
+  decoration: file-signature
+  question: |
+    ${ device_choice_question_title }
+  subquestion: |
+    ${ device_choice_subquestion }
+  field: x.signature_choice  # For `buttons:` below
+  buttons:  
+    - Sign on my phone: phone
+      image: mobile-alt
+    - Sign on this computer: this device
+      image: desktop
+  continue button field: x.saw_device_choice
+  script: |
+    <script>
+      $(".da-field-buttons > div > .btn-da-custom").last().after("<br>")
+      $(".da-field-buttons > div > .btn-da-custom").first().before("<br>")
+    </script>
+  ---
+  id: signature device choice question
+  #generic object: Individual
+  template: device_choice_question_title
+  content: |
+    Sign your court forms
+  ---
+  id: signature device choice subquestion
+  #generic object: Individual
+  template: device_choice_subquestion
+  content: |
+    Your forms are almost ready. You need to sign them first. Use the mouse or touchpad on your computer or sign with your finger on your phone. 
+
+    You can send the forms to someone else to sign if you choose the "phone" option.
+  ---
+  id: provide phone signature link
+  # DEVELOPER: You need to define `x.interview_url_as_qr` with `interview_url_as_qr()`.
+  generic object: Individual
+  question: |
+    ${ interview_link_for_mobile_question_title }
+  subquestion: |
+    ${ interview_link_for_mobile_subquestion }
+  fields:
+    - note: |
+        <center>
+        ${ x.interview_url_as_qr }
+        </center>
+    - Text me a link instead: x.wants_a_text
+      datatype: yesnowide
+    - Cell phone number: x.mobile_number
+      datatype: phone
+      show if: x.wants_a_text
+  help: |
+    Many smartphones will automatically find the picture on this screen when you use the camera app. The link may "float" up from the screen into a small icon you can tap. If your phone does not do this, text yourself a link instead.
+
+  continue button field: x.saw_link_sending_options
+  ---
+  id: interview link for mobile
+  #generic object: Individual
+  template: interview_link_for_mobile_question_title
+  content: |
+    Sign your forms on your phone
+  ---
+  id: interview link for mobile
+  #generic object: Individual
+  template: interview_link_for_mobile_subquestion
+  content: |
+    1. Open the camera app or barcode reader app on your phone.
+    1. Point it at the screen.
+    1. Tap the link icon that appears on the camera screen.
+    1. Tap ${word("Next")} on your phone.
+    1. Sign in the box.
+    1. Come back here and tap ${word("Next")} when you are done.
+  ---
+  id: waiting for signature on other device
+  generic object: Individual
+  question: |
+    ${ wait_for_device_signature_question_title }
+  subquestion: |
+    ${ wait_for_device_signature_subquestion }
+  field: x.has_waited_for_signature
+  ---
+  id: generic waiting for device title
+  generic object: Individual
+  template: wait_for_device_signature_question_title
+  content: |
+    Tap to continue after signing your form on your other device
+  ---
+  id: generic waiting for device subquestion
+  generic object: Individual
+  template: wait_for_device_signature_subquestion
+  content: |
+    % if defined( x.instanceName + '.mobile_number' ):
+    If you think you wrote the wrong phone number, you can go back and write a new one.
+    % endif
