@@ -62,6 +62,7 @@ code: |
       # Prevent this or another invalidated device from signing
       log( '1: ' + x.signature_device_id, 'console' )
       if x.send_signature_link_method:
+        x.signature_device_id = get_random_id()
 
         if x.send_signature_link_method == 'sms':
           log( 'reconsidering sms', 'console' )
@@ -73,7 +74,6 @@ code: |
         log( 'passed link method: ' + x.send_signature_link_method, 'console' )
         # Invalidate past devices, reset values so they can be asked again?
         
-        x.signature_device_id = get_random_id()
         undefine( x_var_name + '.reset_device_choice' )
         x.reset_device_choice
 
