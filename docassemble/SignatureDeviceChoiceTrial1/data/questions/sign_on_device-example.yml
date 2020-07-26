@@ -15,9 +15,9 @@ code: |
   #  user.sign_on_device
   
   users[0].name.first
+  users.gathered = True
   all_signers = users
-  for user in users:
-    users[0].sign_on_device
+  users[0].sign_on_device
 ---
 id: document
 event: x.after_signature

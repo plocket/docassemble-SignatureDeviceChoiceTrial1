@@ -45,7 +45,7 @@ def find_package_data(where='.', package='', exclude=standard_exclude, exclude_d
 setup(name='docassemble.SignatureDeviceChoiceTrial1',
       version='0.0.1',
       description=('A docassemble extension to offer the user their choice of devices to sign on.'),
-      long_description='# docassemble.SignatureDeviceChoiceTrial1\n\nA docassemble extension to offer the user their choice of devices to sign on.\n\n## Author\n\nmb.restless.tech@gmail.com\n\n',
+      long_description='# docassemble.SignatureDeviceChoiceTrial1\r\n\r\nA docassemble extension to offer the user their choice of devices to sign on.\r\n\r\n## Author\r\n\r\nmb.restless.tech@gmail.com\r\n\r\n',
       long_description_content_type='text/markdown',
       author='',
       author_email='52798256+plocket@users.noreply.github.com',
